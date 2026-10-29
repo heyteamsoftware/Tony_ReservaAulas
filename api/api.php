@@ -47,6 +47,8 @@ function migrarV3(PDO $pdo): void
 {
     $pdo->exec('BEGIN IMMEDIATE');
     try {
+        // Otra petición puede haber migrado mientras esperábamos el bloqueo
+        if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() >= 3) { $pdo->exec('COMMIT'); return; }
         $pdo->exec("ALTER TABLE reservas ADD COLUMN estado TEXT NOT NULL DEFAULT 'aprobada'");
         $pdo->exec('PRAGMA user_version = 3');
         $pdo->exec('COMMIT');
@@ -60,7 +62,8 @@ function migrarV2(PDO $pdo): void
 {
     $pdo->exec('BEGIN IMMEDIATE');
     try {
-        $existia = $pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservas'")->fetchColumn();
+        if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() >= 2) { $pdo->exec('COMMIT'); return; }
+        $existia =$pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservas'")->fetchColumn();
         if ($existia) $pdo->exec('ALTER TABLE reservas RENAME TO reservas_v1');
 
         $pdo->exec("CREATE TABLE reservas (
@@ -155,6 +158,12 @@ function marcarPropias(array $filas): array
     foreach ($filas as &$f) $f['propia'] = (bool)$f['propia'];
     unset($f);
     return $filas;
+}
+
+// Evita que Excel interprete como fórmula un texto escrito por el usuario (=, +, -, @)
+function celdaCsv(string $v): string
+{
+    return preg_match('/^[=+\-@\t\r]/', $v) ? "'" . $v : $v;
 }
 
 function fmtFecha(string $f): string
@@ -336,7 +345,8 @@ try {
             $st = db()->prepare("SELECT id, fecha, franja, recurso, nombre, ciclo, ordenadores, estado,
                 COALESCE(propietario = ?, 0) AS propia FROM reservas WHERE fecha IN ($marcas)");
             $st->execute(array_merge([hashEquipo() ?? ''], $fechas));
-            responder(['ok' => true, 'reservas' => marcarPropias(ordenar($st->fetchAll()))]);
+            // Se devuelve la hora del servidor para que la pantalla no ofrezca horas que ya han pasado
+            responder(['ok' => true, 'hoy' => date('Y-m-d'), 'hora' => date('H:i'), 'reservas' => marcarPropias(ordenar($st->fetchAll()))]);
         }
 
         case 'GET mis': {
@@ -458,6 +468,7 @@ try {
             $st->execute([$id, $equipo]);
             $actual = $st->fetch();
             if (!$actual) fallo('Esa reserva no existe o no es de este equipo.', 403);
+            if (franjaPasada($actual['fecha'], franjaPorId($actual['franja']))) fallo('Esa reserva ya ha pasado y no se puede cambiar.', 409);
 
             $fecha = fechaValida($in['fecha'] ?? '');
             $franja = franjaValida($in['franja'] ?? '');
@@ -504,9 +515,15 @@ try {
         }
 
         case 'POST borrar_propia': {
-            $st = db()->prepare('DELETE FROM reservas WHERE id = ? AND propietario = ?');
-            $st->execute([(int)(entrada()['id'] ?? 0), hashEquipo() ?? '']);
-            if (!$st->rowCount()) fallo('Esa reserva no existe o no es de este equipo.', 403);
+            $id = (int)(entrada()['id'] ?? 0);
+            $equipo = hashEquipo() ?? '';
+            $st = db()->prepare('SELECT fecha, franja FROM reservas WHERE id = ? AND propietario = ?');
+            $st->execute([$id, $equipo]);
+            $actual = $st->fetch();
+            if (!$actual) fallo('Esa reserva no existe o no es de este equipo.', 403);
+            // Una reserva ya pasada queda como registro de uso: no se puede quitar
+            if (franjaPasada($actual['fecha'], franjaPorId($actual['franja']))) fallo('Esa reserva ya ha pasado y no se puede quitar.', 409);
+            db()->prepare('DELETE FROM reservas WHERE id = ? AND propietario = ?')->execute([$id, $equipo]);
             responder(['ok' => true]);
         }
 
@@ -581,7 +598,7 @@ try {
                 foreach ($filas as $f) {
                     fputcsv($out, [
                         fmtFecha($f['fecha']), horaFranja($f['franja']), nombreRecurso($f['recurso']),
-                        $f['nombre'], $f['ciclo'], $f['recurso'] === CARRO_ID ? $f['ordenadores'] : '',
+                        celdaCsv($f['nombre']), celdaCsv($f['ciclo']), $f['recurso'] === CARRO_ID ? $f['ordenadores'] : '',
                         $f['estado'] === 'pendiente' ? 'Pendiente de aprobación' : 'Aprobada',
                         $f['creado'], $f['modificado'],
                     ], ';');
@@ -605,17 +622,30 @@ try {
             // La administración puede dejar cualquier reserva aprobada o pendiente (por defecto, aprobada)
             $estado = in_array($in['estado'] ?? '', ['aprobada', 'pendiente'], true) ? $in['estado'] : 'aprobada';
 
+            // Bloqueo para que dos guardados a la vez no se pasen del hueco (sobre todo en el carro)
             $pdo = db();
-            if ($motivo = hayHueco($pdo, $fecha, $franja, $recurso, $ord, $id)) fallo('No se puede guardar: ' . $motivo, 409);
-
-            if ($id) {
-                $st = $pdo->prepare('UPDATE reservas SET fecha = ?, franja = ?, recurso = ?, nombre = ?, nombre_clave = ?, ciclo = ?, ordenadores = ?, estado = ?, modificado = ? WHERE id = ?');
-                $st->execute([$fecha, $franja, $recurso, $nombre, claveNombre($nombre), $ciclo, $ord, $estado, ahora(), $id]);
-                if (!$st->rowCount()) fallo('La reserva ya no existe.', 404);
-            } else {
-                $st = $pdo->prepare('INSERT INTO reservas (fecha, franja, recurso, nombre, nombre_clave, ciclo, ordenadores, lote, creado, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                $st->execute([$fecha, $franja, $recurso, $nombre, claveNombre($nombre), $ciclo, $ord, 'admin', ahora(), $estado]);
-                $id = (int)$pdo->lastInsertId();
+            $pdo->exec('BEGIN IMMEDIATE');
+            try {
+                if ($motivo = hayHueco($pdo, $fecha, $franja, $recurso, $ord, $id)) {
+                    $pdo->exec('ROLLBACK');
+                    fallo('No se puede guardar: ' . $motivo, 409);
+                }
+                if ($id) {
+                    $st = $pdo->prepare('UPDATE reservas SET fecha = ?, franja = ?, recurso = ?, nombre = ?, nombre_clave = ?, ciclo = ?, ordenadores = ?, estado = ?, modificado = ? WHERE id = ?');
+                    $st->execute([$fecha, $franja, $recurso, $nombre, claveNombre($nombre), $ciclo, $ord, $estado, ahora(), $id]);
+                    if (!$st->rowCount()) {
+                        $pdo->exec('ROLLBACK');
+                        fallo('La reserva ya no existe.', 404);
+                    }
+                } else {
+                    $st = $pdo->prepare('INSERT INTO reservas (fecha, franja, recurso, nombre, nombre_clave, ciclo, ordenadores, lote, creado, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                    $st->execute([$fecha, $franja, $recurso, $nombre, claveNombre($nombre), $ciclo, $ord, 'admin', ahora(), $estado]);
+                    $id = (int)$pdo->lastInsertId();
+                }
+                $pdo->exec('COMMIT');
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->exec('ROLLBACK');
+                throw $e;
             }
             responder(['ok' => true, 'id' => $id]);
         }

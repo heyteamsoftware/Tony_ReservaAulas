@@ -117,18 +117,21 @@ function sincronizarCarrito() {
   const quitadas = [];
   for (const [k, it] of [...estado.carrito]) {
     const ocup = ocupantes(it.fecha, it.franja, it.recurso);
-    const bloqueada = ocup.some(esMio)
+    const bloqueada = franjaPasada(it.fecha, franjaPorId(estado.cfg, it.franja))
+      || ocup.some(esMio)
       || (!esCarro(it.recurso) ? ocup.length > 0 : libres(it.fecha, it.franja, it.recurso) < it.ordenadores);
     if (bloqueada) { estado.carrito.delete(k); quitadas.push(it); }
   }
-  if (quitadas.length) toast(`${quitadas.length} hora(s) ya no están libres y se han quitado de tu selección.`, true);
+  if (quitadas.length) toast(`${quitadas.length} hora(s) ya no están disponibles y se han quitado de tu selección.`, true);
 }
 
 // ---------- datos ----------
 async function cargarDatos() {
   const fechas = [...new Set([estado.dia, ...diasCarrito()])];
   try {
-    const { reservas } = await api('ocupacion', { params: { fechas: fechas.join(',') } });
+    const { reservas, hoy, hora } = await api('ocupacion', { params: { fechas: fechas.join(',') } });
+    // Hora del servidor: así no se ofrecen horas que han pasado con la página abierta
+    if (hoy && hora) { estado.cfg.hoy = hoy; estado.cfg.hora = hora; }
     estado.ocupacion = new Map();
     for (const r of reservas) {
       const k = clave(r.fecha, r.franja, r.recurso);
@@ -149,6 +152,7 @@ async function cargarMis() {
     estado.misReservas = [];
   }
   pintarMis();
+  pintarCarrito(); // el contador de días depende de estas reservas
 }
 
 async function refrescarTodo() {
@@ -277,7 +281,7 @@ function pintarCarrito() {
   const dias = diasCarrito().length;
   const total = diasUsados().length;
   $('#resumenCarrito').textContent = n
-    ? `${n} ${n === 1 ? 'hora' : 'horas'} · ${dias} ${dias === 1 ? 'día nuevo' : 'días nuevos'} · ${total}/${estado.cfg.maxDias} días con reservas`
+    ? `${n} ${n === 1 ? 'hora elegida' : 'horas elegidas'} en ${dias} ${dias === 1 ? 'día' : 'días'} · ${total}/${estado.cfg.maxDias} días con reservas`
     : `${total}/${estado.cfg.maxDias} días con reservas`;
   $('#reservar').disabled = n === 0 || estado.enviando;
 }
@@ -295,6 +299,10 @@ function itemMis(r) {
   const info = el('div', { class: 'info' },
     el('b', {}, `${fmtCorto(r.fecha)} · ${horaDe(r.franja)}`),
     el('span', { class: 'ayuda' }, `${nombreAula(r.recurso)}${esCarro(r.recurso) ? ` · ${r.ordenadores} ord.` : ''} · ${r.nombre} (${r.ciclo})${r.estado === 'pendiente' ? ' · PENDIENTE de aprobación' : ''}`));
+  // Una reserva cuya hora ya ha pasado no se puede cambiar ni quitar
+  if (franjaPasada(r.fecha, franjaPorId(estado.cfg, r.franja))) {
+    return el('li', { class: 'item-mis' }, info, el('span', { class: 'ayuda' }, 'Ya pasada'));
+  }
   return el('li', { class: 'item-mis' }, info, el('div', { class: 'acciones-mis' },
     el('button', { type: 'button', class: 'btn btn-secundario btn-peq', onclick: () => { estado.editando = r.id; pintarMis(); } }, 'Editar'),
     el('button', { type: 'button', class: 'btn btn-peligro btn-peq', onclick: () => quitarReserva(r) }, 'Quitar')));
@@ -448,9 +456,10 @@ function iniciarEventos() {
   $('#ordenadores').max = cfg.carroOrdenadores;
   actualizarAviso();
 
-  estado.mes = aFecha(cfg.hoy);
-  estado.mes.setDate(1);
   estado.dia = primerDiaReservable(cfg.hoy);
+  // El calendario abre en el mes del primer día disponible (puede ser el mes siguiente)
+  estado.mes = aFecha(estado.dia);
+  estado.mes.setDate(1);
 
   iniciarEventos();
   $('#cargando').remove();
