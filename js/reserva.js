@@ -15,6 +15,7 @@ const estado = {
   dia: null,            // 'AAAA-MM-DD' del día que se muestra
   carrito: new Map(),   // clave → { fecha, franja, recurso, ordenadores }
   ocupacion: new Map(), // clave → [{ id, nombre, ciclo, ordenadores, propia }]
+  ocupMes: new Map(),   // fecha → { horas, ordenadores } del aula elegida (colores del calendario)
   misReservas: [],      // reservas hechas desde este equipo
   editando: null,       // id de la reserva que se está editando
   enviando: false,
@@ -156,7 +157,7 @@ async function cargarMis() {
 }
 
 async function refrescarTodo() {
-  await Promise.all([cargarDatos(), cargarMis()]);
+  await Promise.all([cargarDatos(), cargarMis(), cargarMes()]);
 }
 
 async function irADia(iso) {
@@ -164,6 +165,66 @@ async function irADia(iso) {
   $('#tituloDia').textContent = `${fmtLargo(iso)} · ${nombreAula(estado.aula)}`;
   $('#listaDia').replaceChildren(el('div', { class: 'cargando' }, 'Consultando…'));
   await cargarDatos();
+}
+
+// ---------- ocupación del mes (colores del calendario) ----------
+const TEXTO_NIVEL = ['libre', 'poca ocupación', 'bastante ocupada', 'completa'];
+
+// 0 libre · 1 poca (menos del 50 %) · 2 bastante (50 % o más) · 3 completa
+function nivelDia(iso) {
+  const d = estado.ocupMes.get(iso);
+  if (!d) return 0;
+  const horas = reservables().length;
+  const ratio = esCarro(estado.aula) ? d.ordenadores / (horas * capacidad()) : d.horas / horas;
+  if (ratio >= 1) return 3;
+  if (ratio >= 0.5) return 2;
+  return ratio > 0 ? 1 : 0;
+}
+
+let peticionMes = 0;
+async function cargarMes() {
+  const mes = estado.mes;
+  const desde = aIso(mes);
+  const hasta = aIso(new Date(mes.getFullYear(), mes.getMonth() + 1, 0));
+  const n = ++peticionMes;
+  try {
+    const { dias } = await api('ocupacion_mes', { params: { recurso: estado.aula, desde, hasta } });
+    if (n !== peticionMes) return; // respuesta antigua: ya se cambió de mes o de aula
+    estado.ocupMes = new Map(dias.map((d) => [d.fecha, d]));
+  } catch (e) {
+    if (n !== peticionMes) return;
+    estado.ocupMes = new Map();
+  }
+  pintarCalendario();
+}
+
+function cambiarMes(delta) {
+  estado.mes.setMonth(estado.mes.getMonth() + delta);
+  estado.ocupMes = new Map();
+  pintarCalendario();
+  cargarMes();
+}
+
+// ---------- elección de aula (botones) ----------
+function pintarAulas() {
+  $('#aulas').replaceChildren(...estado.cfg.recursos.map((r) => el('button', {
+    type: 'button',
+    role: 'radio',
+    class: 'aula-btn',
+    'aria-checked': r.id === estado.aula ? 'true' : 'false',
+    onclick: () => elegirAula(r.id),
+  }, el('span', {}, r.nombre), r.aprobacion ? el('small', {}, 'Requiere aprobación') : null)));
+}
+
+function elegirAula(id) {
+  if (id === estado.aula) return;
+  estado.aula = id;
+  estado.ocupMes = new Map();
+  pintarAulas();
+  $('#campoOrd').classList.toggle('oculto', !esCarro(estado.aula));
+  actualizarAviso();
+  cargarMes();
+  irADia(estado.dia);
 }
 
 // ---------- pintar ----------
@@ -192,11 +253,16 @@ function pintarCalendario() {
       if (iso === estado.dia) cls.push('activo');
       if (enCarrito.has(iso)) cls.push('marcado');
       if (iso === estado.cfg.hoy) cls.push('hoy');
+      const reservable = diaReservable(iso);
+      const nivel = reservable ? nivelDia(iso) : 0;
+      if (nivel) cls.push(`ocup-${nivel}`);
+      const texto = `${fmtLargo(iso)}${reservable ? `, ${TEXTO_NIVEL[nivel]}` : ''}${enCarrito.has(iso) ? ', con horas elegidas' : ''}`;
       nodos.push(el('button', {
         type: 'button',
         class: cls.join(' '),
-        disabled: !diaReservable(iso),
-        'aria-label': fmtLargo(iso) + (enCarrito.has(iso) ? ', con horas elegidas' : ''),
+        disabled: !reservable,
+        'aria-label': texto,
+        title: texto,
         onclick: () => irADia(iso),
       }, d.getDate()));
     }
@@ -405,14 +471,6 @@ function iniciarEventos() {
   $('#ciclo').addEventListener('input', (e) => { estado.ciclo = e.target.value.trim().replace(/\s+/g, ' '); });
   $('#ciclo').addEventListener('change', () => { guardarLS(LS_CICLO, estado.ciclo); pintarTodo(); });
 
-  $('#aula').addEventListener('change', (e) => {
-    estado.aula = e.target.value;
-    $('#campoOrd').classList.toggle('oculto', !esCarro(estado.aula));
-    actualizarAviso();
-    pintarTodo();
-    irADia(estado.dia);
-  });
-
   $('#ordenadores').addEventListener('change', (e) => {
     let n = parseInt(e.target.value, 10);
     if (!(n >= 1)) n = 1;
@@ -424,8 +482,8 @@ function iniciarEventos() {
     pintarTodo();
   });
 
-  $('#mesAnterior').addEventListener('click', () => { estado.mes.setMonth(estado.mes.getMonth() - 1); pintarCalendario(); });
-  $('#mesSiguiente').addEventListener('click', () => { estado.mes.setMonth(estado.mes.getMonth() + 1); pintarCalendario(); });
+  $('#mesAnterior').addEventListener('click', () => cambiarMes(-1));
+  $('#mesSiguiente').addEventListener('click', () => cambiarMes(1));
   $('#reservar').addEventListener('click', reservar);
 }
 
@@ -450,8 +508,7 @@ function iniciarEventos() {
   $('#nombre').value = estado.nombre;
   $('#ciclo').value = estado.ciclo;
 
-  $('#aula').replaceChildren(...cfg.recursos.map((r) => el('option', { value: r.id }, r.nombre)));
-  $('#aula').value = estado.aula;
+  pintarAulas();
   $('#campoOrd').classList.toggle('oculto', !esCarro(estado.aula));
   $('#ordenadores').max = cfg.carroOrdenadores;
   actualizarAviso();
@@ -464,5 +521,5 @@ function iniciarEventos() {
   iniciarEventos();
   $('#cargando').remove();
   $('#pantalla').classList.remove('oculto');
-  await Promise.all([irADia(estado.dia), cargarMis()]);
+  await Promise.all([irADia(estado.dia), cargarMis(), cargarMes()]);
 })();

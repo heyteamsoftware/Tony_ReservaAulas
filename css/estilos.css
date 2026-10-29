@@ -136,6 +136,33 @@ main { flex: 1; width: 100%; max-width: 1280px; margin: 0 auto; padding: 18px 16
 }
 .cal-dia.activo.marcado::after { background: #fff; }
 
+/* Color del día según la ocupación del aula elegida */
+.cal-dia.ocup-1:not(.activo) { background: #e3f3ea; border-color: #b9dfc9; }
+.cal-dia.ocup-2:not(.activo) { background: #fff1c2; border-color: #ecd27a; }
+.cal-dia.ocup-3:not(.activo) { background: #f6d3d9; border-color: #e3a5b0; color: var(--granate); }
+.leyenda-ocup { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8rem; color: var(--texto-suave); margin-top: 10px; }
+.leyenda-ocup span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda-ocup i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid var(--gris); background: #fff; }
+.leyenda-ocup i.ocup-1 { background: #e3f3ea; border-color: #b9dfc9; }
+.leyenda-ocup i.ocup-2 { background: #fff1c2; border-color: #ecd27a; }
+.leyenda-ocup i.ocup-3 { background: #f6d3d9; border-color: #e3a5b0; }
+.leyenda-ocup i.punto { width: 8px; height: 8px; border: 0; border-radius: 50%; background: var(--verde); }
+
+/* Aulas como botones */
+.campo.ancho { grid-column: 1 / -1; }
+.campo-titulo { font-weight: 600; font-size: .86rem; }
+.aulas { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.aula-btn {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px;
+  min-height: 46px; padding: 8px 12px; border-radius: 10px; border: 1.5px solid #c9d1da;
+  background: #fff; cursor: pointer; text-align: left; font-weight: 600; font-size: .92rem; color: var(--azul-oscuro);
+}
+.aula-btn:hover { border-color: var(--azul); }
+.aula-btn small { font-weight: 600; font-size: .72rem; color: #6b5300; }
+.aula-btn[aria-checked="true"] { background: var(--azul); border-color: var(--azul); color: #fff; }
+.aula-btn[aria-checked="true"] small { color: #ffe9a8; }
+.aula-btn:focus-visible { outline: 3px solid rgba(11, 74, 124, .35); outline-offset: 2px; }
+
 /* ---------- horas del día ---------- */
 .turno { font-family: "Oswald", sans-serif; font-size: .92rem; color: var(--granate); text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 6px; }
 .fila {

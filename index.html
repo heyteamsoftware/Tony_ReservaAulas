@@ -40,9 +40,9 @@
             <label for="ciclo">Ciclo</label>
             <input id="ciclo" autocomplete="off" maxlength="40" placeholder="Ej.: DAM 2º">
           </div>
-          <div class="campo">
-            <label for="aula">Aula a reservar</label>
-            <select id="aula"></select>
+          <div class="campo ancho">
+            <span class="campo-titulo" id="lblAula">Aula a reservar</span>
+            <div id="aulas" class="aulas" role="radiogroup" aria-labelledby="lblAula"></div>
           </div>
           <div class="campo oculto" id="campoOrd">
             <label for="ordenadores">Nº de ordenadores</label>
@@ -80,7 +80,14 @@
           <button class="cal-nav" id="mesSiguiente" type="button" aria-label="Mes siguiente">›</button>
         </div>
         <div class="cal-rejilla" id="cal"></div>
-        <p class="ayuda" style="margin-top:8px">Pulsa un día para ver quién tiene reservada cada hora. Los días con un punto verde tienen horas elegidas.</p>
+        <div class="leyenda-ocup" aria-hidden="true">
+          <span><i></i> Libre</span>
+          <span><i class="ocup-1"></i> Poca ocupación</span>
+          <span><i class="ocup-2"></i> Bastante ocupada</span>
+          <span><i class="ocup-3"></i> Completa</span>
+          <span><i class="punto"></i> Horas elegidas</span>
+        </div>
+        <p class="ayuda" style="margin-top:8px">El color indica la ocupación del aula elegida. Pulsa un día para ver quién tiene reservada cada hora.</p>
       </section>
 
       <!-- Tercera columna: horas del día elegido -->

@@ -349,6 +349,23 @@ try {
             responder(['ok' => true, 'hoy' => date('Y-m-d'), 'hora' => date('H:i'), 'reservas' => marcarPropias(ordenar($st->fetchAll()))]);
         }
 
+        // Ocupación por día de un aula en un rango (para colorear el calendario)
+        case 'GET ocupacion_mes': {
+            $recurso = recursoValido($_GET['recurso'] ?? '')['id'];
+            $desde = fechaValida($_GET['desde'] ?? '');
+            $hasta = fechaValida($_GET['hasta'] ?? '');
+            if ($hasta < $desde || strtotime($hasta) - strtotime($desde) > 62 * 86400) fallo('Rango de fechas no válido.');
+            $st = db()->prepare('SELECT fecha, COUNT(*) AS horas, COALESCE(SUM(ordenadores), 0) AS ordenadores
+                FROM reservas WHERE recurso = ? AND fecha BETWEEN ? AND ? GROUP BY fecha');
+            $st->execute([$recurso, $desde, $hasta]);
+            $dias = array_map(fn($d) => [
+                'fecha' => $d['fecha'],
+                'horas' => (int)$d['horas'],             // aulas: horas ocupadas
+                'ordenadores' => (int)$d['ordenadores'], // carro: ordenadores reservados en todo el día
+            ], $st->fetchAll());
+            responder(['ok' => true, 'dias' => $dias]);
+        }
+
         case 'GET mis': {
             // Solo las reservas hechas desde este equipo
             $equipo = hashEquipo();
