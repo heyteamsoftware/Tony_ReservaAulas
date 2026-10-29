@@ -500,7 +500,7 @@ function iniciarEventos() {
   document.querySelectorAll('.contactoNombre').forEach((n) => { n.textContent = cfg.contacto.nombre; });
   document.querySelectorAll('.contactoEmail').forEach((a) => {
     a.textContent = cfg.contacto.email;
-    a.href = `mailto:${cfg.contacto.email}?subject=${encodeURIComponent('Cambio en reserva de aulas')}`;
+    a.href = `mailto:${cfg.contacto.email}?subject=${encodeURIComponent('Reserva de salas y ordenadores')}`;
   });
 
   estado.nombre = leerLS(LS_NOMBRE);

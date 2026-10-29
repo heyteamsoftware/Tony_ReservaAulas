@@ -608,7 +608,7 @@ try {
 
             if ($accion === 'admin_csv') {
                 header('Content-Type: text/csv; charset=utf-8');
-                header('Content-Disposition: attachment; filename="reservas-aulas-' . date('Ymd') . '.csv"');
+                header('Content-Disposition: attachment; filename="reservas-salas-ordenadores-' . date('Ymd') . '.csv"');
                 $out = fopen('php://output', 'w');
                 fwrite($out, "\xEF\xBB\xBF");
                 fputcsv($out, ['Fecha', 'Hora', 'Aula', 'Nombre', 'Ciclo', 'Ordenadores', 'Estado', 'Creada', 'Modificada'], ';');

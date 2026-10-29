@@ -1,4 +1,4 @@
-# Reserva de Aulas — CIFP Tony Gallardo
+# Reserva de Salas y Ordenadores — CIFP Tony Gallardo
 
 - Web: https://myappsserver.duckdns.org/reservadeaulas/
 - Administración: https://myappsserver.duckdns.org/reservadeaulas/admin.html
