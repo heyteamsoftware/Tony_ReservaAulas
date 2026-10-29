@@ -1,0 +1,10 @@
+# Base de datos real del servidor
+data/*.sqlite*
+
+# Secretos: contraseña de administración y datos del servidor
+api/secreto.php
+deploy/servidor.env
+
+# Windows
+Thumbs.db
+desktop.ini

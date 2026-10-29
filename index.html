@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reserva de Aulas · CIFP Tony Gallardo</title>
+  <meta name="description" content="Reserva de las aulas de Informática y de los ordenadores del carro del CIFP Tony Gallardo.">
+  <meta name="theme-color" content="#0b4a7c">
+  <link rel="icon" href="img/favicon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Oswald:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <header class="cabecera">
+    <div class="cabecera-interior">
+      <img src="img/logo.webp" alt="Logo CIFP Tony Gallardo">
+      <div>
+        <div class="sub">CIFP Tony Gallardo</div>
+        <h1>Reserva de Aulas</h1>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="aviso" class="aviso oculto" role="status"></div>
+    <div id="cargando" class="cargando">Cargando…</div>
+
+    <div id="pantalla" class="layout oculto">
+      <!-- Columna izquierda: datos, selección y mis reservas -->
+      <section class="tarjeta" aria-labelledby="tituloReserva">
+        <h2 id="tituloReserva">Tu reserva</h2>
+        <div class="campos">
+          <div class="campo">
+            <label for="nombre">Nombre y apellidos</label>
+            <input id="nombre" autocomplete="name" maxlength="60" placeholder="Ej.: Ana Pérez Santana">
+          </div>
+          <div class="campo">
+            <label for="ciclo">Ciclo</label>
+            <input id="ciclo" autocomplete="off" maxlength="40" placeholder="Ej.: DAM 2º">
+          </div>
+          <div class="campo">
+            <label for="aula">Aula a reservar</label>
+            <select id="aula"></select>
+          </div>
+          <div class="campo oculto" id="campoOrd">
+            <label for="ordenadores">Nº de ordenadores</label>
+            <input id="ordenadores" type="number" min="1" value="1" inputmode="numeric">
+          </div>
+        </div>
+
+        <div id="avisoAula" class="aviso aviso-info oculto">
+          <b>Emprendimiento requiere aprobación.</b> Necesita la aprobación verbal de jefatura de estudios. Puedes reservarla, pero quedará como «Pendiente de aprobación» hasta que jefatura la confirme.
+        </div>
+
+        <h3>Tu selección</h3>
+        <div id="carrito"></div>
+
+        <details class="mis" id="misReservas" open>
+          <summary>Tus reservas desde este equipo (<span id="numMis">0</span>)</summary>
+          <p class="ayuda oculto" id="misVacio" style="margin-top:8px">Aún no tienes reservas hechas desde este equipo.</p>
+          <ul id="listaMis" class="lista-mis"></ul>
+        </details>
+
+        <p class="ayuda" style="margin-top:16px">
+          Máximo <span class="maxDias">5</span> días con reservas a la vez (las pasadas no cuentan) y <span class="maxHoras">3</span> horas por aula y día.
+          Solo puedes editar o quitar las reservas que hiciste desde este equipo.
+          Si tienes algún problema, contacta con el correo:
+          <a class="contactoEmail" href="#">…</a>
+        </p>
+      </section>
+
+      <!-- Columna derecha: calendario y día -->
+      <section class="tarjeta" aria-labelledby="tituloCalendario">
+        <h2 id="tituloCalendario" class="oculto">Calendario</h2>
+        <div class="cal-cabecera">
+          <button class="cal-nav" id="mesAnterior" type="button" aria-label="Mes anterior">‹</button>
+          <span class="mes" id="tituloMes"></span>
+          <button class="cal-nav" id="mesSiguiente" type="button" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="cal-rejilla" id="cal"></div>
+        <p class="ayuda" style="margin-top:8px">Pulsa un día para ver quién tiene reservada cada hora. Los días con un punto verde tienen horas elegidas.</p>
+      </section>
+
+      <!-- Tercera columna: horas del día elegido -->
+      <section class="tarjeta" aria-labelledby="tituloDia">
+        <h3 id="tituloDia"></h3>
+        <div id="listaDia"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="barra">
+    <div class="barra-in">
+      <span class="resumen" id="resumenCarrito">Ninguna hora elegida</span>
+      <button class="btn btn-primario" id="reservar" type="button" disabled>Confirmar reserva</button>
+    </div>
+  </div>
+
+  <footer class="pie">
+    CIFP Tony Gallardo · Coordinación TIC · <a href="admin.html">Administración</a>
+  </footer>
+
+  <script src="js/comun.js"></script>
+  <script src="js/reserva.js"></script>
+</body>
+</html>
